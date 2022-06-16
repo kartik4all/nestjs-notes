@@ -1,0 +1,1091 @@
+-------------------------------------ts----------------------------------
+const data={
+    reports:[]
+} //in js
+//in ts
+const data:Data={reports:[]}
+interface Data{
+reports:{
+id:string;
+source?:number; //? makes it optional
+created_at:Date;
+type:'income'|'expenditure' // now type can only be either of these , we can also use enum here
+}[] // defined array type
+}
+
+//enum type
+enum ReportType{
+    INCOME="income"
+    EXPENDITURE:"expenditure"
+}
+now in interface directly write ReportType in front of type
+
+----------------------------------------about-------------------------------
+used for building scalable serverside application
+module wise splitting
+support ts
+nodejs backend
+solves architecture problems
+scalable
+angular like
+dependency injections 
+use express js / fastify
+rest api and microservices support
+
+
+
+
+
+
+repos:
+https://github.com/tkssharma/nestjs-crash-course    https://www.youtube.com/watch?v=0CRTpw2Sr6Y&list=PLIGDNOJWiL1_AhUGgmwz7RhyXwX5aVLj4&index=5
+
+
+--------------------init---------------------
+npm i -g @nestjs/cli
+nest new project-name
+main.ts is the entry file
+$ npm i --save @nestjs/config // to add environment variable config
+// Nest factory creates the nest instance in main.ts
+// app.listen waits for incoming http req
+
+
+---------------------------------errors and status codes-------------------------
+throw new NotFoundException('not found')
+
+//302 - found and redirected
+200 -success
+403 -  throw new HttpException('Forbidden', HttpStatus.FORBIDDEN); 
+404 - not found NotFoundException
+500 - server error // by default exception
+401- authentication error
+403 - throw new UnauthorizedException()
+
+// to overwrite body
+ throw new HttpException({
+    status: HttpStatus.FORBIDDEN,
+    error: 'This is a custom message',
+  }, HttpStatus.FORBIDDEN);
+
+  // custom exception
+  export class ForbiddenException extends HttpException {
+  constructor() {
+    super('Forbidden', HttpStatus.FORBIDDEN);
+  }
+}
+
+
+@Get()
+async findAll() {
+  throw new ForbiddenException();
+}
+
+---------------------------------------exception filters-----------------------------
+// used to create custom exception body in response
+
+import { ExceptionFilter, Catch, ArgumentsHost, HttpException } from '@nestjs/common';
+import { Request, Response } from 'express';
+
+@Catch(HttpException)  // remove HttpException from here , if want to catch all exceptions
+export class HttpExceptionFilter implements ExceptionFilter {
+  catch(exception: HttpException, host: ArgumentsHost) {
+    const ctx = host.switchToHttp();
+    const response = ctx.getResponse<Response>();
+    const request = ctx.getRequest<Request>();
+    const status = exception.getStatus();
+
+    response
+      .status(status)
+      .json({
+        statusCode: status,
+        timestamp: new Date().toISOString(),
+        path: request.url,
+      });
+  }
+}
+
+// to use it
+@Get("/custom-exception-filter")
+@UseFilters(new HttpExceptionFilter()) // HttpExceptionFilter - directly import class here
+generateCustomExceptionFilter() {
+    throw new ForbiddenException();
+}
+
+
+// to use at controller level
+@Controller()
+@UseFilters(HttpExceptionFilter)
+export class AppController {}
+
+// to  use it globally 
+in main.ts
+ app.useGlobalFilters(new HttpExceptionFilter)
+----------------------------decorator-----------------------------
+an expression that returns a function, used for class,method or property
+
+
+--------------------------------module----------------------------
+module- A class annoted with module decorator
+module can import other modules, controllers, providers
+
+to create a module->
+src->new folder(module name - auth)->app.module.ts
+import {Module} from '@nestjs/common'
+@Global // this makes global module, this will be autp imported everywhere in other modules behind the scenes
+@Module({  
+    imports:[OtherModuleName]
+})
+export class AuthModule {}
+
+// to generate this all automatically
+nest g module bookmark
+
+
+
+-----------------------------------controllers-----------------------------
+to handle incoming request and return response to the client
+classes made to handle endpoints
+
+to create a controller->
+src->module folder(controller name - auth)->app.controller.ts
+import {Controller} from '@nestjs/common'
+
+@Controller('auth/:type') // base path for all the api's for this controller
+export class AuthController {
+  constructor(private authService: AuthService) {}
+
+  @Post('signup/:id') // post request made with url /auth/signup/id
+  signup(
+      @Param('type') myparam:string , @Param('id') myid:string // to access params
+      @Body() mybody:{amount:number,source:string} // to access body
+      @Query('id', ParseIntPipe) id: number // to access query param
+  ) {
+      // now we can use myparam from request parameter
+      return 'i am signup' //nestjs automatically handles return type , in this case text/html in headers
+      // return data.filter(i=>i.type===MyEnum.type) , returns array of obj 
+  }
+
+  @Post('signin') // ':id' for dynamic values
+  signin(
+
+  ) {}
+
+  @Get('docs')
+@Redirect('https://docs.nestjs.com', 302) // for redirection
+
+
+
+@HttpCode(204) // to generate status code in response , no content
+  @Delete(':id')
+}
+// here private is shortcut for this process-> declaring and initialising together
+//export class AuthController {
+    authService:AuthService
+    constructor(authService: AuthService) { // object of authService class is created here internally
+        this.authService=authService
+    } 
+}
+entry in controllers in auth.module.ts
+$ nest g controller cats 
+
+-----------------------------------providers-------------------------------------
+any injectable services,factories,helpers to execute bussiness logic which can be used anywhere
+$ nest g service cats 
+auth.service.ts
+import { Injectable } from "@nestjs/common";
+
+@Injectable()
+export class AuthService{}
+entry in providers in auth.module.ts
+
+//nest js internally handles how to make objects from classes and then use it
+
+optional providers-> constructor value may get delayed 
+import { Injectable, Optional, Inject } from '@nestjs/common';
+
+@Injectable()
+export class HttpService<T> {
+  constructor(@Optional() @Inject('HTTP_OPTIONS') private httpClient: T) {}
+}
+-------------------------------------------pipe-------------------------------------
+entity that transform things and validate them
+import {ParseIntPipe} from '@nextjs/common'
+ @Param('id',ParseIntPipe) myid:string  // validate if id is an integer
+ ParseBoolPipe
+ ParseEnumPipe // new ParseEnumPipe(ReportType)
+ ParseArrayPipe
+ ParseUUidPipe
+
+ // we can also throw exception like this
+   @Param('id', new ParseIntPipe({ errorHttpStatusCode: HttpStatus.NOT_ACCEPTABLE }))
+  id: number,
+//a validation pipe either returns the value unchanged, or throws an exception.
+
+
+
+-------------------------------------validations , Dtos ------------------------------------
+validate the id passed is a uuid
+validate body is correct
+validate type is either income or expense
+
+for custom validations - dto's are used (data transfer object)
+Dto is an object that defines how the data will be passed over network
+
+npm i class-validator class-transformer
+example to validate report request body
+src>auth>dtos>report.dto.ts
+
+import {IsNumber,IsPositive,IsPassportNumber,IsString,IsNotEmpty,IsOptional} from 'class-validator'
+export class CreateReportDto{
+    @IsOptional()
+    @IsNumber()
+    @IsPositive()
+    amount:string;
+
+    @IsString()                 
+    @IsNotEmpty()
+    source:string;
+
+@IsOptional()
+@IsArray()
+@ArrayMinSize(1)                                           //export class Array{
+    @ValidateNested()                                         @IsString()
+    @VaidationType(()=>Address)                             readonly city:string;
+    public address?:Address[]                                  }
+}
+// for body validations dto is used
+in Controller ->
+  @Post('signup/:id') 
+  signup(
+      @Param('type') myparam:string , @Param('id') myid:string // to access params
+      @Body() {amount,source}:CreateReportDto // use Dto here, import it
+  ) {
+      return 'i am signup'
+  }
+
+@Get()
+findByIds(
+  @Query('ids', new ParseArrayPipe({ items: Number, separator: ',' })) // accept id like GET /?ids=1,2,3
+WebSockets
+  ids: number[],
+) {
+  return 'This action returns users by ids';
+}
+
+  in main.ts->
+  import {ValidationPipe} from "@nestjs/common"
+  inside bootstrap function after creating server
+  app.useGlobalPipes(new ValidationPipe(
+      whitelist:true // excludes additional param which are not in dtos for req obj
+      forbidNonWhitelisted :true // throws error if any additional property is mention in req obj
+   ));
+
+
+   // to check for null or undefined directly in param, default value Pipes are used in controller
+   @Get()
+async findAll(
+  @Query('activeOnly', new DefaultValuePipe(false), ParseBoolPipe) activeOnly: boolean,
+  @Query('page', new DefaultValuePipe(0), ParseIntPipe) page: number,
+) {
+  return this.catsService.findAll({ activeOnly, page });
+}
+
+  -------------------------------------custom pipes-----------------------------------------
+  // create custom validations
+  $ npm install --save joi
+$ npm install --save-dev @types/joi
+// not explained good, have to check online
+
+// to create
+import { PipeTransform, Injectable, ArgumentMetadata, BadRequestException } from '@nestjs/common';
+import { ObjectSchema } from 'joi';
+
+@Injectable()
+export class JoiValidationPipe implements PipeTransform<any> {
+  constructor(private schema: ObjectSchema) {}
+
+  transform(value: any, metadata: ArgumentMetadata) {
+    const { error } = this.schema.validate(value);
+    if (error) {
+      throw new BadRequestException('Validation failed');
+    }
+    return value;
+  }
+}
+
+// another example
+parse-int.pipe.tsJS
+
+import { PipeTransform, Injectable, ArgumentMetadata, BadRequestException } from '@nestjs/common';
+
+@Injectable()
+export class ParseIntPipe implements PipeTransform<string, number> {
+  transform(value: string, metadata: ArgumentMetadata): number {
+    const val = parseInt(value, 10);
+    if (isNaN(val)) {
+      throw new BadRequestException('Validation failed');
+    }
+    return val;
+  }
+}
+
+// to bind the pipe
+@Post()
+@UsePipes(new JoiValidationPipe(createCatSchema))
+async create(@Body() createCatDto: CreateCatDto) {
+  this.catsService.create(createCatDto);
+}
+
+or
+@Get(':id')
+async findOne(@Param('id', new ParseIntPipe()) id) {
+  return this.catsService.findOne(id);
+}
+
+// to use pipes globally
+//doesn't set up pipes for gateways and micro services.
+main.ts
+
+async function bootstrap() {
+  const app = await NestFactory.create(AppModule);
+  app.useGlobalPipes(new ValidationPipe());
+  await app.listen(3000);
+}
+bootstrap();
+
+// Partial type - to create or update object with only selected params, rest optional
+export class UpdateCatDto extends PartialType(CreateCatDto) {}
+
+// Picktype - picks selected params as mandat
+export class UpdateCatAgeDto extends PickType(CreateCatDto, ['age'] as const) {}
+
+//Omittype - pick all keys, exclude the mentioned ones
+export class UpdateCatDto extends OmitType(CreateCatDto, ['name'] as const) {}
+
+// Intersection type - function combines two types into one new type (class)
+export class CreateCatDto {
+  name: string;
+  breed: string;
+}
+
+export class AdditionalCatInfo {
+  color: string;
+}
+export class UpdateCatDto extends IntersectionType(
+  CreateCatDto,
+  AdditionalCatInfo,
+) {}
+
+
+--------------------------------------library specific responses-------------------------
+import { Response } from 'express';
+@Controller('cats')
+export class CatsController {
+  @Post()
+  create(@Res() res: Response) {
+    res.status(HttpStatus.CREATED).send();
+  }
+
+  @Get()
+  findAll(@Res() res: Response) {
+     res.status(HttpStatus.OK).json([]);
+  }
+}
+ you lose compatibility with Nest features that depend on Nest standard response handling, such as Interceptors 
+ and @HttpCode() / @Header() decorators. To fix this, you can set the passthrough option to true, as follows:
+
+ @Get()
+findAll(@Res({ passthrough: true }) res: Response) {
+  res.status(HttpStatus.OK);
+  return [];
+}
+
+------------------------------------------------Interceptor--------------------------------
+// something that lies between request and response
+   // to allow specific values in response only , class transformer is used
+   import {Exclude} from "class-transformer"
+   export class ReportResponseDto{
+       id:number;
+       amount:number;
+
+       @Exclude()
+       source:string;
+
+@Expose({name:'createdAt'})  // we can also transform property names
+transformCreatedAt(){
+    return this.created_at
+}
+
+ @Transform(({ value }) => moment(value), { toClassOnly: true })
+  date: Moment;
+
+       constructor(partial :Partial<ReportResponseDto>){
+           Object.assign(this,partial)
+       }
+   }
+
+   now in service files->
+   getAllReports(type:ReportType):ReportResponseDto[]{
+       return new ReportResponseDto(data); // for object
+       return data.filter(i=>i).map(i=>new ReportResponseDto(i)) // for array return
+   }
+
+   in main.ts->
+     app.useGlobalPipes(new ValidationPipe(
+      transform:true // telling nestjs to allow transformations of response,
+      transformOptions:{
+          enableImplicitConversion:true
+      }
+   ));
+
+
+   now in app.module.ts ->
+   IMPORT {APP_INTERCEPTOR} from "@nestjs/core"
+   @Module({  
+    provider:[AppService,{
+provide:APP_INTERCEPTOR, // for every incoming request, we want to provide an interceptor
+useClass:ClassSerializerInterceptor // interceptor we are using here, serealizer interceptor are used to modify data
+    }]
+})
+
+-----------------------------------------------custom interceptor-------------------------
+
+import { NestInterceptor, ExecutionContext, CallHandler } from '@nestjs/common';
+import { map } from 'rxjs';
+
+export class CustomInterceptor implements NestInterceptor {
+  intercept(context: ExecutionContext  // to handle request, handler: CallHandler // to handle response) {
+      console.log('anything related to request will be doone here')
+    return handler.handle().pipe(
+           console.log('anything related to response will be doone here')
+
+             tap(() => console.log(`After... ${Date.now() - now}ms`)) // to log current Date
+             // or 
+      map((data) => { // to change response map is used
+        const response = {
+          ...data,
+          createdAt: data.created_at,
+        };
+        delete response.updated_at;
+        delete response.created_at;
+
+        return response;
+      }),
+    );
+  }
+}
+
+  now in app.module.ts ->
+   IMPORT {APP_INTERCEPTOR} from "@nestjs/core"
+   @Module({  
+    provider:[AppService,{
+provide:APP_INTERCEPTOR, // for every incoming request, we want to provide an interceptor
+useClass:CustomInterceptor // our custom interceptor 
+    }]
+})
+
+or 
+// in controller
+@UseInterceptors(LoggingInterceptor)
+export class CatsController {}
+  
+
+  // read timeout interceptor, cache interceptor from docs
+ 
+ --------------------------------mongo db connection-------------------------
+ npm i --save mongoose @nestjs/mongoose // to gove our app mongoose ts support
+ in app.module.ts
+ import {MongooseModule} from "@nestjs/mongoose"
+ @Module({
+     imports:[AuthModule,MongooseModule.forRoot('connection string of mongodb atlas')]
+ })
+
+ --------------------------------mongodb cqueries---------------------------
+// https://www.mongodb.com/docs/manual/tutorial/query-documents/
+ //docment
+ .insertMany([
+   { item: "journal", qty: 25, size: { h: 14, w: 21, uom: "cm" }, status: "A" }]
+
+   .find( {} )
+   .find( { status: "D" } )
+.find( { "size.uom": "in" } )
+.find( { tags: ["red", "blank"] } )  // all are exact matches
+
+   .find( { status: { $in: [ "A", "D" ] } } ) // where status equals either "A" or "D"
+   .find( { status: "A", qty: { $lt: 30 } } ) //where the status equals "A" and qty is less than ($lt) 30:
+   .find( { $or: [ { status: "A" }, { qty: { $lt: 30 } } ] } )// $gt:30, //where the status equals "A" or qty is less than ($lt) 30:
+   .find( {         //where the status equals "A" and either qty is less than ($lt) 30 or item starts with the character p
+     status: "A",
+     $or: [ { qty: { $lt: 30 } }, { item: /^p/ } ]
+} )
+
+
+// in arrays
+.find( { tags: { $all: ["red", "blank"] } } ) // includes red and blank
+.find( { tags: "red" } ) // where tags is an array that contains the string "red" as one of its elements:
+{ <array field>: { <operator1>: <value1>, ... } } // with particular key value in obj in array
+.find( { dim_cm: { $gt: 15, $lt: 20 } } ) // one element can satisfy the greater than 15 condition and another element can satisfy the less than 20 condition, or a single element can satisfy both:
+.find( { dim_cm: { $elemMatch: { $gt: 22, $lt: 30 } } } ) //where the dim_cm array contains at least one element that is both greater than ($gt) 22 and less than ($lt) 30:
+.find( { "dim_cm.1": { $gt: 25 } } ) // where the second element in the array dim_cm is greater than 25
+.find( { "tags": { $size: 3 } } ) // where the array tags has 3 elements.
+
+// embedded array
+.find( { 'instock.qty': { $lte: 20 } } ) //where the instock array has at least one embedded document that contains the field qty whose value is less than or equal to 20:
+.find( { 'instock.0.qty': { $lte: 20 } } ) // where the instock array has as its first element a document that contains the field qty whose value is less than or equal to 20:
+.find( { "instock": { $elemMatch: { qty: 5, warehouse: "A" } } } ) // where the instock array has at least one embedded document that contains both the field qty equal to 5 and the field warehouse equal to A:
+.find( { "instock": { $elemMatch: { qty: { $gt: 10, $lte: 20 } } } } ) // where the instock array has at least one embedded document that contains the field qty that is greater than 10 and less than or equal to 20:
+.find( { "instock.qty": 5, "instock.warehouse": "A" } ) //where the instock array has at least one embedded document that contains the field qty equal to 5 and at least one embedded document (but not necessarily the same embedded document) that contains the field warehouse equal to A:
+
+ -----------------------------To create and use schema of  mongoose------------------
+ repo - https://github.com/academind/nestjs-introduction/blob/02-mongodb
+ npm i --save-dev @types/mongoose
+ src>products>product.model.ts
+import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
+import { Document } from 'mongoose';
+
+
+@Schema()
+export class Product {
+  @Prop({required:true})
+  name: string;
+
+  @Prop()
+  age: number;
+
+  @Prop()
+  breed: string;
+}
+
+export const ProductSchema = SchemaFactory.createForClass(Product);
+
+now in product module
+import { Module } from '@nestjs/common';
+import { MongooseModule } from '@nestjs/mongoose';
+import { ProductSchema } from './product.model';
+
+@Module({
+  imports: [
+    MongooseModule.forFeature([{ name: 'Product', schema: ProductSchema }]),
+  ],
+  controllers: [ProductsController],
+  providers: [ProductsService],
+})
+export class ProductsModule {}
+
+
+
+
+product.service.ts-> 
+import { Injectable, NotFoundException } from '@nestjs/common';
+import { InjectModel } from '@nestjs/mongoose';
+import { Model } from 'mongoose';
+
+import { Product } from './product.model';
+
+@Injectable()
+export class ProductsService {
+  constructor(
+    @InjectModel('Product') private readonly productModel: Model<Product>,
+  ) {}
+
+  async insertProduct(title: string, desc: string, price: number) {
+    const newProduct = new this.productModel({
+      title,
+      description: desc,
+      price,
+    });
+    const result = await newProduct.save(); // creates new product in mongodb
+    return result.id as string;
+  }
+
+  async getProducts() {
+    const products = await this.productModel.find().exec();
+    return products.map(prod => ({
+      id: prod.id,
+      title: prod.title,
+      description: prod.description,
+      price: prod.price,
+    }));
+  }
+
+  async getSingleProduct(productId: string) {
+    const product = await this.findProduct(productId);
+    return {
+      id: product.id,
+      title: product.title,
+      description: product.description,
+      price: product.price,
+    };
+  }
+
+  async updateProduct(
+    productId: string,
+    title: string,
+    desc: string,
+    price: number,
+  ) {
+    const updatedProduct = await this.findProduct(productId);
+    if (title) {
+      updatedProduct.title = title;
+    }
+    if (desc) {
+      updatedProduct.description = desc;
+    }
+    if (price) {
+      updatedProduct.price = price;
+    }
+    updatedProduct.save();
+  }
+
+  async deleteProduct(prodId: string) {
+    const result = await this.productModel.deleteOne({_id: prodId}).exec();
+    if (result.n === 0) {
+      throw new NotFoundException('Could not find product.');
+    }
+  }
+
+  private async findProduct(id: string): Promise<Product> {
+    let product;
+    try {
+      product = await this.productModel.findById(id).exec(); // exec is used to return a true promise, mongo doesnt returns a promise
+    } catch (error) {
+      throw new NotFoundException('Could not find product.');
+    }
+    if (!product) {
+      throw new NotFoundException('Could not find product.');
+    }
+    return product;
+  }
+}
+
+
+
+product.controller.ts->
+import {
+  Controller,
+  Post,
+  Body,
+  Get,
+  Param,
+  Patch,
+  Delete,
+} from '@nestjs/common';
+
+import { ProductsService } from './products.service';
+
+@Controller('products')
+export class ProductsController {
+  constructor(private readonly productsService: ProductsService) {}
+
+  @Post()
+  async addProduct(
+    @Body('title') prodTitle: string,
+    @Body('description') prodDesc: string,
+    @Body('price') prodPrice: number,
+  ) {
+    const generatedId = await this.productsService.insertProduct(
+      prodTitle,
+      prodDesc,
+      prodPrice,
+    );
+    return { id: generatedId };
+  }
+
+  @Get()
+  async getAllProducts() {
+    const products = await this.productsService.getProducts();
+    return products;
+  }
+
+  @Get(':id')
+  getProduct(@Param('id') prodId: string) {
+    return this.productsService.getSingleProduct(prodId);
+  }
+
+  @Patch(':id')
+  async updateProduct(
+    @Param('id') prodId: string,
+    @Body('title') prodTitle: string,
+    @Body('description') prodDesc: string,
+    @Body('price') prodPrice: number,
+  ) {
+    await this.productsService.updateProduct(prodId, prodTitle, prodDesc, prodPrice);
+    return null;
+  }
+
+  @Delete(':id')
+  async removeProduct(@Param('id') prodId: string) {
+      await this.productsService.deleteProduct(prodId);
+      return null;
+  }
+}
+
+
+-----------------------useValue,useClass, useFactory-------------------------------------
+ choose useValue to provide the same injected value each time*,
+ useFactory when the injection value should be computed at runtime, and
+  useClass when you want the injector to construct a value of Type<any> to provide.
+
+-------------------------------setting up environment config---------------------------
+repo - https://github.com/mguay22/cryptostats-backend/blob/master/src/app.module.ts
+$ npm i --save @nestjs/config
+
+in app.module.ts->
+import { ConfigModule, ConfigService } from '@nestjs/config';
+import { MongooseModule } from '@nestjs/mongoose';
+
+@Module({
+  imports: [
+    ConfigModule.forRoot({ isGlobal: true }), // to use this module globally throughtout app,this is a dynamic module as forRoot is used
+// dynmaic module- This feature enables you to easily create customizable modules that can register and configure providers dynamically
+    MongooseModule.forRootAsync({
+      imports: [ConfigModule],
+      useFactory: async (configService: ConfigService) => ({
+        uri: configService.get<string>('MONGODB_URI'), // gets the value from .env file
+      }),
+      inject: [ConfigService],
+    }),
+    UsersModule,
+    AuthModule,
+    CoinbaseModule,
+  ],
+  controllers: [AppController],
+  providers: [AppService],
+})
+export class AppModule {}
+
+
+--------------------------------------password encryption----------------------
+npm i bcrypt
+import {hash} from 'bcrypt';
+await hash(obj.password,10)
+
+
+---------------------------middlewares-----------------------------------------
+Middleware is a function which is called before the route handler.
+Middleware functions have access to the request and response objects, and the next() middleware function in 
+the application’s request-response cycle. 
+by default nest uses express middlewares
+execute any code.
+make changes to the request and the response objects.
+end the request-response cycle.
+call the next middleware function in the stack.
+
+logger.middleware.tsJS
+
+import { Injectable, NestMiddleware } from '@nestjs/common';
+import { Request, Response, NextFunction } from 'express';
+
+@Injectable()
+export class LoggerMiddleware implements NestMiddleware {
+  use(req: Request, res: Response, next: NextFunction) {
+    console.log('Request...');
+    next();
+  }
+}
+
+
+-> to apply a middleware, we have to configure it in module
+app.module.ts
+
+import { Module, NestModule, MiddlewareConsumer } from '@nestjs/common';
+import { LoggerMiddleware } from './common/middleware/logger.middleware';
+import { CatsModule } from './cats/cats.module';
+
+@Module({
+  imports: [CatsModule],
+})
+export class AppModule implements NestModule {
+  configure(consumer: MiddlewareConsumer) { // wecan use async await inside 
+    consumer
+      .apply(LoggerMiddleware,cors(), helmet()) // multiple middlewares
+       .exclude( // excludes these paths
+    { path: 'cats', method: RequestMethod.GET },
+    { path: 'cats', method: RequestMethod.POST },
+    'cats/(.*)',
+  )
+      .forRoutes('cats'); // or { path: 'cats', method: RequestMethod.GET }
+  }
+}
+
+
+we can also converts class middleware to functional middleware
+// use this when we dont need any dependency
+logger.middleware.ts
+
+import { Request, Response, NextFunction } from 'express';
+
+export function logger(req: Request, res: Response, next: NextFunction) {
+  console.log(`Request...`);
+  next();
+};
+
+to use middlewares globally->
+const app = await NestFactory.create(AppModule);
+app.use(logger);
+await app.listen(3000);
+
+
+
+----------------------------guards-------------------------------------------
+Guards have a single responsibility. They determine whether a given request will be handled by
+ the route handler or not, depending on certain conditions (like permissions, roles, ACLs, etc.) present at run-time.
+ // often known as authorization
+ // Guards are executed after each middleware, but before any interceptor or pipe.
+// guard has execution context unlike middleware
+// guard knows whats the next step , middleware next doesnt know, it just proceeds
+// passport js is further used for jwt token authentication
+ auth.guard.ts
+
+import { Injectable, CanActivate, ExecutionContext } from '@nestjs/common';
+import { Observable } from 'rxjs';
+
+import { Injectable, CanActivate, ExecutionContext } from '@nestjs/common';
+import { Reflector } from '@nestjs/core';
+
+@Injectable()
+export class RolesGuard implements CanActivate {
+  constructor(private reflector: Reflector) {}
+
+  canActivate(context: ExecutionContext): boolean {
+    const requiredRoles = this.reflector.get<string[]>('roles', context.getHandler());
+    if (!requiredRoles) {
+      return true;
+    }
+ //   or
+     const requiredRoles = this.reflector.getAllAndOverride<Role[]>(ROLES_KEY, [
+      context.getHandler(),
+      context.getClass(),
+    ]);
+
+
+
+    const request = context.switchToHttp().getRequest();
+    const user = request.user;
+     return requiredRoles.some((role) => user.roles?.includes(role)); // logic
+  }
+}
+
+// to bind a guard
+@Controller('cats')
+@UseGuards(RolesGuard)
+export class CatsController {}
+
+// or providers: [
+  {
+    provide: APP_GUARD,
+    useClass: RolesGuard,
+  },
+],
+
+// to use globally
+// doesnt work for gateways and microservices
+const app = await NestFactory.create(AppModule);
+app.useGlobalGuards(new RolesGuard());
+
+// we can also defines the allowed roles for a particular requst
+@Post()
+@SetMetadata('roles', ['admin']) // not adviuced to use nestjs setmetadata, make custom decorator instead
+async create(@Body() createCatDto: CreateCatDto) {
+  this.catsService.create(createCatDto);
+}
+
+// Custom SetMetaData decorator
+roles.decorator.ts
+import { SetMetadata } from '@nestjs/common';
+export const Roles = (...roles: string[]) => SetMetadata('roles', roles);
+
+// to use it
+cats.controller.tsJS
+
+@Post()
+@Roles('admin')
+async create(@Body() createCatDto: CreateCatDto) {
+  this.catsService.create(createCatDto);
+}
+
+
+---------------------------------custom decorators--------------------------
+user.decorator.tsJS
+
+import { createParamDecorator, ExecutionContext } from '@nestjs/common';
+
+
+
+export const User = createParamDecorator(
+  (data: unknown, ctx: ExecutionContext) => {
+    const request = ctx.switchToHttp().getRequest();
+    return request.user;
+  },
+);
+
+//or 
+
+export const User = createParamDecorator(
+  (data: unknown, ctx: ExecutionContext) => {
+    const request = ctx.switchToHttp().getRequest();
+      const user = request.user;
+     return data ? user?.[data] : user;
+  },
+);
+
+// to use it
+@Get()
+async findOne(@User() user: UserEntity) {
+  console.log(user);
+}
+
+//or
+@Get()
+async findOne(@User('firstName') firstName: string) {
+  console.log(`Hello ${firstName}`);
+}
+
+// to add pipe
+ @User(new ValidationPipe({ validateCustomDecorators: true })) //validateCustomDecorators:true is mandatory in custom
+  user: UserEntity,
+
+
+-------------------------------------------provider scopes--------------------------------
+// default (application life), request, transiet
+import { Injectable, Scope, Inject } from '@nestjs/common';
+import { REQUEST } from '@nestjs/core';
+import { Request } from 'express';
+
+@Injectable({ scope: Scope.REQUEST })
+export class CatsService {
+  constructor(@Inject(REQUEST) private request: Request) {}
+}
+
+
+@Controller({
+  path: 'cats',
+  scope: Scope.REQUEST,
+})
+export class CatsController {}
+
+
+-------------------circlular dependency-----------------------
+class A depends on class B and vice versa
+if CatsService and CommonService depend on each other, both sides of the relationship can use @Inject() and the
+ forwardRef() utility to resolve the circular dependency. Otherwise Nest won't instantiate them because 
+ all of the essential metadata won't be available. Here's an example:
+@Injectable()
+export class CatsService {
+  constructor(
+    @Inject(forwardRef(() => CommonService))
+    private commonService: CommonService,
+  ) {}
+}
+
+
+-------------------------------life cyclles---------------------------------
+onModuleInit() - Called once the host module's dependencies have been resolved.
+onApplicationBootstrap() - Called once all modules have been initialized, but before listening for connections.
+onModuleDestroy() - Called after a termination signal (e.g., SIGTERM) has been received.
+beforeApplicationShutdown() - Called after all onModuleDestroy() handlers have completed (Promises resolved or rejected);
+once complete (Promises resolved or rejected), all existing connections will be closed (app.close() called).
+onApplicationShutdown() - Called after connections close (app.close() resolves).
+
+import { Injectable, OnModuleInit } from '@nestjs/common';
+
+@Injectable()
+export class UsersService implements OnModuleInit {
+  onModuleInit() {
+    console.log(`The module has been initialized.`);
+  }
+}
+
+async onModuleInit(): Promise<void> {
+  await this.fetch();
+}
+
+
+----------------------------------------mongo db---------------------------------
+import { Document } from 'mongoose';
+
+export type CatDocument = Cat & Document;
+
+@Schema({versionKey:false,collection:'users'})
+export class Cat {
+  @Prop({ required: true })
+  name: string;
+
+  @Prop()
+  age: number;
+
+  @Prop()
+  breed: string;
+}
+
+export const CatSchema = SchemaFactory.createForClass(Cat);
+
+
+// In case you want to specify relation to another model, later for populating, you can use @Prop() decorator as well.
+ For example, if Cat has Owner which is stored in a different collection called owners, 
+ the property should have type and ref. For example:
+import * as mongoose from 'mongoose';
+import { Owner } from '../owners/schemas/owner.schema';
+
+// inside the class definition
+@Prop({ type: mongoose.Schema.Types.ObjectId, ref: 'Owner' })
+owner: Owner;
+
+//In case there are multiple owners, your property configuration should look as follows:
+@Prop({ type: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Owner' }] })
+owner: Owner[];
+
+//the raw schema definition can also be passed to the decorator. This is useful when, for example,
+ a property represents a nested object which is not defined as a class. For this,
+  use the raw() function from the @nestjs/mongoose package, as follows:
+@Prop(raw({
+  firstName: { type: String },
+  lastName: { type: String }
+}))
+details: Record<string, any>;
+
+
+// register the model in module 
+@Module({
+  imports: [MongooseModule.forFeature([{ name: Cat.name, schema: CatSchema }])],
+  controllers: [CatsController],
+  providers: [CatsService],
+})
+export class CatsModule {}
+
+// to use in service
+import { Injectable } from '@nestjs/common';
+import { InjectModel } from '@nestjs/mongoose';
+import { Cat, CatDocument } from './schemas/cat.schema';
+import { CreateCatDto } from './dto/create-cat.dto';
+
+@Injectable()
+export class CatsService {
+  constructor(@InjectModel(Cat.name) private catModel: Model<CatDocument>) {}
+
+  async create(createCatDto: CreateCatDto): Promise<Cat> {
+    const createdCat = new this.catModel(createCatDto);
+    return createdCat.save();
+  }
+
+  async findAll(): Promise<Cat[]> {
+    return this.catModel.find().exec();
+  }
+}
+
+-----------------------------------jwt authentications-------------------------
+npm i @nestjs/passport passport passport-local
+npm i -D @types/passport-local
+npm i -D @types/passport-local
+yarn add @nestjs/jwt passport-jwt
+
+// passport is a mini frmawork for authentication
+
+https://docs.nestjs.com/security/authentication
+youtube.com/watch?v=FgOrz G73z_k
+
+for parsing incoming cookies // use cookie-parser
+
+
+--------------------------------swagger-----------------------------------
+https://docs.nestjs.com/openapi/types-and-parameters
